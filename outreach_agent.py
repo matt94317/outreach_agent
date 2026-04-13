@@ -20,6 +20,8 @@ Usage:
 
 import csv
 import json
+import os
+import re
 import time
 import webbrowser
 import urllib.parse
@@ -27,6 +29,15 @@ import textwrap
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Load .env file if present
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
 
 # ── Optional Excel support ────────────────────────────────────────────────────
 try:
@@ -49,7 +60,7 @@ except ImportError:
 
 CONFIG = {
     # ── Spreadsheet ───────────────────────────────────────────────────────────
-    "spreadsheet_path": "/Users/matt/Desktop/Outreach agent/Test_B2B Tracking Sheet - China copy.xlsx",   # CSV or .xlsx file
+    "spreadsheet_path": "HOOKD_Master_Outreach_v4.xlsx",   # CSV or .xlsx file
     # Column names in your spreadsheet (case-insensitive, partial match ok)
     "col_company":          "Company Name",
     "col_contact_name":     "Contact Name",
@@ -60,6 +71,7 @@ CONFIG = {
     "col_website":      "Website",
     "col_status":           "Status",           # Will be added/updated automatically
     "col_action_required":  "Action Required",
+    "col_language":         "Language",         # Optional: "EN" → English template, anything else → Chinese
 
     # ── Your details ─────────────────────────────────────────────────────────
     "sender_name":     "Renee Yu",
@@ -75,30 +87,52 @@ CONFIG = {
     "gmail_address":   "renee@hookdugc.com",
 
     # ── Anthropic API key ─────────────────────────────────────────────────────
-    # Get one at console.anthropic.com
-    "anthropic_api_key": "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",
+    # Set ANTHROPIC_API_KEY in your .env file (never hardcode secrets here)
+    "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
 
     # ── Email template ────────────────────────────────────────────────────────
     # Use {{company_name}}, {{website}}, {{ai_insight}} as placeholders.
     "email_subject_template": "Helping {{company_name}} grow with Digital Marketing",
 
-    "email_body_template": """Hi {{company_name}} team,
+    "email_body_template": """
+團隊您好，
+我是來自 HOOKd 的 Renee。
+我們已協助全球多個品牌透過 UGC 行銷，提升至百萬的月下載量
+我們一直非常佩服 [公司名稱] 在 [該公司的核心價值/產品亮點，例如：思維導圖領域的深耕／建構女性安全社交空間上的貢獻]，特別是 [具體特色描述，例如：將複雜的邏輯轉化為優雅視覺圖表／透過直播與語音房間讓社群跨越地理限制]，這在當前市場中極具價值。
+對於 [公司名稱] 而言，「[核心吸引新用戶的素材方向]」 是最吸引新用戶的素材。
+HOOKd 專門製作高轉化率的 UGC（用戶原創內容），能協助您：
 
-I came across your business and wanted to reach out personally.
+[內容方向一，例如：沉浸式靈感拆解]： [具體說明，例如：透過創作者演示縮時過程，展示產品絲滑的操作感與多樣化功能]
+[內容方向二，例如：場景化知識整理]： [具體說明，例如：製作情境短影音，降低工具使用門檻，引發社群儲存與下載]
+[內容方向三，例如：高質感品牌推廣]： 針對 IG Reels/TikTok 產出具有美學厚度的原生素材，避開生硬的軟體操作教學，以「[切入角度]」切入，優化獲客成本（CPI）
 
-{{ai_insight}}
+希望能撥冗 30 分鐘與您交流，分享我們如何協助 [公司名稱] 在社群創造更高品質的增長。
 
-At {{sender_company}}, we specialise in digital marketing strategies tailored for businesses like yours — from SEO and social media to paid ads and content marketing. We'd love to show you what's possible.
+""",
 
-Would you be open to a quick 30-minute chat? You can book a time that suits you here:
-{{booking_link}}
+    # ── English email template ────────────────────────────────────────────────
+    # Used when a row's Language column is "EN" (case-insensitive).
+    "email_subject_template_en": "Helping {{company_name}} grow with UGC Marketing",
 
-Looking forward to connecting!
+    "email_body_template_en": """
+Hi [Team / Contact Name],
 
-Best regards,
-{{sender_name}}
-{{sender_title}} | {{sender_company}}
-{{sender_website}}
+My name is Renee, co-founder of HOOKd✨.
+
+We've helped brands worldwide scale to **millions of monthly downloads** through **UGC (User-Generated Content) marketing**.
+
+We've been genuinely impressed by [Company Name]'s work in [core value/product highlight — e.g. the way you simplify complex workflows / your commitment to building meaningful community experiences]. That kind of [specific differentiator] is exactly what resonates with today's audiences.
+
+For [Company Name], we believe **core content hook** is the strongest angle to attract new users at scale.
+
+**HOOKd specialises in high-converting UGC** and can help you with:
+
+    • **[Content direction 1 — e.g. Immersive product storytelling]:** [Brief description — e.g. Creators showcase your product's core moments, driving curiosity and installs]
+    • **[Content direction 2 — e.g. Scenario-based use cases]:** [Brief description — e.g. Short-form videos that lower the barrier to entry and spark saves & shares]
+    • **[Content direction 3 — e.g. Native social creatives]:** Platform-native content for TikTok & Instagram Reels — leading with [angle], optimising your **CPI** without the hard-sell feel
+
+Would love to grab **30 minutes** to share how we can help [Company Name] build higher-quality growth on social.
+
 """,
 
     # ── Behaviour ─────────────────────────────────────────────────────────────
@@ -157,6 +191,24 @@ def find_col(headers, keyword):
             return h
     return None
 
+def _sheet_language(sheet_name):
+    """Infer language from sheet tab name. Returns 'EN' or 'ZH'."""
+    name = sheet_name.strip().upper()
+    if "EN" in name or "ENGLISH" in name:
+        return "EN"
+    return "ZH"
+
+def _parse_sheet(ws):
+    """Parse one openpyxl worksheet into (headers, rows) using the same format as CSV DictReader."""
+    raw = list(ws.values)
+    if not raw:
+        return [], []
+    headers = [str(h) if h is not None else "" for h in raw[0]]
+    rows = []
+    for row in raw[1:]:
+        rows.append({headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)})
+    return headers, rows
+
 def load_clients(path):
     path = Path(path)
     if not path.exists():
@@ -165,89 +217,109 @@ def load_clients(path):
         sys.exit(1)
 
     ext = path.suffix.lower()
-    rows = []
-    headers = []
+    # rows and headers are dicts keyed by sheet name for xlsx,
+    # or use the sentinel key "_csv" for csv files.
+    all_rows    = {}   # {sheet_name: [row_dict, ...]}
+    all_headers = {}   # {sheet_name: [col_name, ...]}
 
     if ext == ".csv":
         with open(path, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
-            headers = reader.fieldnames or []
-            rows = list(reader)
+            hdrs = reader.fieldnames or []
+            rws  = list(reader)
+        all_headers["_csv"] = hdrs
+        all_rows["_csv"]    = rws
 
     elif ext in (".xlsx", ".xls"):
         if not EXCEL_SUPPORT:
             error("openpyxl not installed. Run: pip install openpyxl")
             sys.exit(1)
         wb = openpyxl.load_workbook(path)
-        ws = wb.active
-        raw = list(ws.values)
-        if not raw:
+        for ws in wb.worksheets:
+            hdrs, rws = _parse_sheet(ws)
+            if hdrs:
+                all_headers[ws.title] = hdrs
+                all_rows[ws.title]    = rws
+        if not all_headers:
             error("Spreadsheet appears to be empty.")
             sys.exit(1)
-        headers = [str(h) if h is not None else "" for h in raw[0]]
-        for row in raw[1:]:
-            rows.append({headers[i]: (str(v) if v is not None else "") for i, v in enumerate(row)})
     else:
         error(f"Unsupported file type: {ext}. Use .csv or .xlsx")
         sys.exit(1)
 
-    # Normalise column mapping
     cfg = CONFIG
-    col_company        = find_col(headers, cfg["col_company"]) or (headers[0] if headers else "company")
-    col_contact_name   = find_col(headers, cfg["col_contact_name"])
-    col_role           = find_col(headers, cfg["col_role"])
-    col_email          = find_col(headers, cfg["col_email"])
-    col_linkedin       = find_col(headers, cfg["col_linkedin"])
-    col_date_contacted = find_col(headers, cfg["col_date_contacted"])
-    col_description    = find_col(headers, cfg["col_website"])
-    col_status         = find_col(headers, cfg["col_status"])
-    col_action         = find_col(headers, cfg["col_action_required"])
+    clients   = []
+    col_status = None   # resolved per sheet (assumed same name across sheets)
 
-    clients = []
-    for i, row in enumerate(rows):
-        company      = row.get(col_company, "").strip()
-        email        = row.get(col_email, "").strip()          if col_email          else ""
-        contact_name = row.get(col_contact_name, "").strip()   if col_contact_name   else ""
-        role         = row.get(col_role, "").strip()           if col_role           else ""
-        linkedin     = row.get(col_linkedin, "").strip()       if col_linkedin       else ""
-        date_contacted = row.get(col_date_contacted, "").strip() if col_date_contacted else ""
-        description  = row.get(col_description, "").strip()   if col_description    else ""
-        status       = row.get(col_status, "").strip()         if col_status         else ""
-        action       = row.get(col_action, "").strip()         if col_action         else ""
-        if not company and not email:
-            continue
-        clients.append({
-            "_row_index":     i,
-            "_raw":           row,
-            "company":        company,
-            "contact_name":   contact_name,
-            "role":           role,
-            "email":          email,
-            "linkedin":       linkedin,
-            "date_contacted": date_contacted,
-            "website":        description,
-            "status":         status,
-            "action":         action,
-        })
+    for sheet_name, headers in all_headers.items():
+        rows     = all_rows[sheet_name]
+        language = _sheet_language(sheet_name) if ext != ".csv" else "ZH"
 
-    return clients, headers, rows, col_company, col_email, col_linkedin, col_status, path, ext
+        col_company        = find_col(headers, cfg["col_company"]) or (headers[0] if headers else "company")
+        col_contact_name   = find_col(headers, cfg["col_contact_name"])
+        col_role           = find_col(headers, cfg["col_role"])
+        col_email          = find_col(headers, cfg["col_email"])
+        col_linkedin       = find_col(headers, cfg["col_linkedin"])
+        col_date_contacted = find_col(headers, cfg["col_date_contacted"])
+        col_description    = find_col(headers, cfg["col_website"])
+        col_status_sheet   = find_col(headers, cfg["col_status"])
+        col_action         = find_col(headers, cfg["col_action_required"])
+        col_language_col   = find_col(headers, cfg["col_language"])
+        if col_status_sheet:
+            col_status = col_status_sheet
 
-def save_clients(clients, headers, rows, col_status, path, ext):
+        info(f"Sheet '{sheet_name}' → default language: {language}, {len(rows)} data rows")
+
+        for i, row in enumerate(rows):
+            company      = row.get(col_company, "").strip()
+            email        = row.get(col_email, "").strip()          if col_email          else ""
+            contact_name = row.get(col_contact_name, "").strip()   if col_contact_name   else ""
+            role         = row.get(col_role, "").strip()           if col_role           else ""
+            linkedin     = row.get(col_linkedin, "").strip()       if col_linkedin        else ""
+            date_contacted = row.get(col_date_contacted, "").strip() if col_date_contacted else ""
+            description  = row.get(col_description, "").strip()   if col_description    else ""
+            status       = row.get(col_status_sheet, "").strip()  if col_status_sheet   else ""
+            action       = row.get(col_action, "").strip()         if col_action         else ""
+            # Per-row Language column overrides the sheet-level default
+            lang_cell    = row.get(col_language_col, "").strip().upper() if col_language_col else ""
+            row_language = "EN" if "EN" in lang_cell else ("ZH" if lang_cell else language)
+            if not company and not email:
+                continue
+            clients.append({
+                "_row_index":  i,
+                "_sheet":      sheet_name,
+                "_raw":        row,
+                "company":     company,
+                "contact_name": contact_name,
+                "role":        role,
+                "email":       email,
+                "linkedin":    linkedin,
+                "date_contacted": date_contacted,
+                "website":     description,
+                "status":      status,
+                "action":      action,
+                "language":    row_language,
+            })
+
+    return clients, all_headers, all_rows, None, None, None, col_status, path, ext
+
+def save_clients(clients, all_headers, all_rows, col_status, path, ext):
     """Write status updates back to the spreadsheet."""
-    # Ensure status column exists in headers
-    if col_status is None:
-        col_status_name = "status"
-        headers = list(headers) + [col_status_name]
-    else:
-        col_status_name = col_status
+    col_status_name = col_status or "status"
 
-    # Update rows
+    # Push updated statuses back into the per-sheet row dicts
     for client in clients:
-        idx = client["_row_index"]
-        if idx < len(rows):
-            rows[idx][col_status_name] = client["status"]
+        sheet = client.get("_sheet", "_csv")
+        idx   = client["_row_index"]
+        sheet_rows = all_rows.get(sheet, [])
+        if idx < len(sheet_rows):
+            sheet_rows[idx][col_status_name] = client["status"]
 
     if ext == ".csv":
+        headers = list(all_headers.get("_csv", []))
+        rows    = all_rows.get("_csv", [])
+        if col_status_name not in headers:
+            headers.append(col_status_name)
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
             writer.writeheader()
@@ -260,10 +332,16 @@ def save_clients(clients, headers, rows, col_status, path, ext):
             warn("openpyxl not installed, cannot save .xlsx. Install with: pip install openpyxl")
             return
         wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.append(headers)
-        for row in rows:
-            ws.append([row.get(h, "") for h in headers])
+        for i, (sheet_name, headers) in enumerate(all_headers.items()):
+            headers = list(headers)
+            if col_status_name not in headers:
+                headers.append(col_status_name)
+            rows = all_rows.get(sheet_name, [])
+            ws = wb.active if i == 0 else wb.create_sheet()
+            ws.title = sheet_name
+            ws.append(headers)
+            for row in rows:
+                ws.append([row.get(h, "") for h in headers])
         wb.save(path)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -274,8 +352,9 @@ def generate_email(client):
     """Call Claude to personalise the email for a specific client."""
     cfg = CONFIG
     api_key = cfg["anthropic_api_key"]
-    template = cfg["email_body_template"]
-    subject_tpl = cfg["email_subject_template"]
+    is_english = client.get("language", "").strip().upper() == "EN"
+    template    = cfg["email_body_template_en"]    if is_english else cfg["email_body_template"]
+    subject_tpl = cfg["email_subject_template_en"] if is_english else cfg["email_subject_template"]
 
     website_ctx = f"Their website is: {client['website']}." if client["website"] else "No website provided."
 
@@ -303,6 +382,7 @@ Instructions:
 - Keep the tone professional yet warm and conversational
 - Do NOT be generic — make it feel like you genuinely researched them
 - Keep the body under 200 words
+- Wrap key phrases and important keywords in 【】 brackets (e.g. 【UGC行銷】 or 【millions of downloads】) — use these for company achievements, service names, key benefits, metrics, and calls to action
 
 Return ONLY valid JSON, nothing else:
 {{"subject": "...", "body": "..."}}"""
@@ -378,6 +458,10 @@ def build_signature():
 #  TERMINAL REVIEW UI
 # ══════════════════════════════════════════════════════════════════════════════
 
+def render_highlight(text):
+    """Render 【keyword】 brackets in ANSI yellow for terminal display."""
+    return re.sub(r'【(.+?)】', lambda m: f"{C.YELLOW}【{m.group(1)}】{C.RESET}{C.WHITE}", text)
+
 def display_email_preview(client, subject, body, index, total):
     section(f"Client {index}/{total}  —  {client['company'] or client['email']}")
 
@@ -389,20 +473,14 @@ def display_email_preview(client, subject, body, index, total):
     divider()
     print(f"\n  {C.BOLD}Subject:{C.RESET} {C.YELLOW}{subject}{C.RESET}\n")
 
-    # Word-wrap body for terminal display
+    # Word-wrap body for terminal display, highlighting 【keyword】 brackets
     for line in body.splitlines():
         if line.strip():
             wrapped = textwrap.fill(line, width=60, initial_indent="  ", subsequent_indent="  ")
-            print(f"{C.WHITE}{wrapped}{C.RESET}")
+            print(f"{C.WHITE}{render_highlight(wrapped)}{C.RESET}")
         else:
             print()
 
-    # Show signature preview
-    sig = build_signature()
-    print(f"\n{C.DIM}", end="")
-    for line in sig.strip().splitlines():
-        print(f"  {line}")
-    print(C.RESET)
 
 def prompt_approval(client):
     """
@@ -466,15 +544,11 @@ def open_gmail_compose(to_email, subject, body):
     """
     Opens Gmail compose in the default browser with To, Subject, and Body
     pre-filled. The user reviews and clicks Send inside Gmail.
-    Works whether Gmail is open or not — browser handles the login state.
     """
-    signature = build_signature()
-    full_body = body.rstrip() + "\n" + signature
-
     params = urllib.parse.urlencode({
         "to":   to_email,
         "su":   subject,
-        "body": full_body,
+        "body": body,
     })
     url = f"https://mail.google.com/mail/?view=cm&fs=1&{params}"
     webbrowser.open(url)
@@ -495,11 +569,11 @@ def main():
     total = len(clients)
     info(f"Loaded {C.BOLD}{total}{C.RESET} clients from {C.CYAN}{path.name}{C.RESET}")
 
-    # Filter out already sent if configured
+    # Skip any row whose status starts with "sent" (case-insensitive)
     to_process = []
     skipped_count = 0
     for c in clients:
-        if CONFIG["skip_already_sent"] and c["status"].lower() in ("sent", "✓ sent"):
+        if c["status"].lower().startswith("sent"):
             skipped_count += 1
         else:
             to_process.append(c)

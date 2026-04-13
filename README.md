@@ -1,4 +1,5 @@
 # OutreachAI — Local Email Outreach Agent
+
 ### A terminal-based AI agent for personalised cold email outreach
 
 ---
@@ -72,11 +73,11 @@ Also customise the **email template** in CONFIG to match your service and tone.
 
 Your CSV or Excel file needs at least these columns (names are flexible):
 
-| company        | email                  | website             |
-|----------------|------------------------|---------------------|
-| Acme Coffee    | hello@acmecoffee.com   | acmecoffee.com      |
-| Blue Sky Salon | info@blueskysalon.com  |                     |
-| TechStart Pty  | contact@techstart.com  | techstart.com.au    |
+| company        | email                 | website          |
+| -------------- | --------------------- | ---------------- |
+| Acme Coffee    | hello@acmecoffee.com  | acmecoffee.com   |
+| Blue Sky Salon | info@blueskysalon.com |                  |
+| TechStart Pty  | contact@techstart.com | techstart.com.au |
 
 Save it as `clients.csv` (or update `spreadsheet_path` in CONFIG to match your filename).
 
@@ -104,6 +105,7 @@ python3 outreach_agent.py
 ```
 
 **Typical flow per email:**
+
 1. Read the preview in terminal
 2. Press `o` → Gmail opens in browser
 3. Check it looks good, click **Send** inside Gmail
@@ -114,15 +116,15 @@ python3 outreach_agent.py
 
 ## Email template placeholders
 
-| Placeholder          | Replaced with                                   |
-|----------------------|-------------------------------------------------|
-| `{{company_name}}`   | Company name from spreadsheet                   |
-| `{{website}}`        | Website from spreadsheet                        |
-| `{{ai_insight}}`     | AI-generated insight specific to that company   |
-| `{{sender_name}}`    | Your name from CONFIG                           |
-| `{{sender_title}}`   | Your title from CONFIG                          |
-| `{{sender_company}}` | Your company from CONFIG                        |
-| `{{booking_link}}`   | Your Calendly / Google Meet URL from CONFIG     |
+| Placeholder            | Replaced with                                 |
+| ---------------------- | --------------------------------------------- |
+| `{{company_name}}`   | Company name from spreadsheet                 |
+| `{{website}}`        | Website from spreadsheet                      |
+| `{{ai_insight}}`     | AI-generated insight specific to that company |
+| `{{sender_name}}`    | Your name from CONFIG                         |
+| `{{sender_title}}`   | Your title from CONFIG                        |
+| `{{sender_company}}` | Your company from CONFIG                      |
+| `{{booking_link}}`   | Your Calendly / Google Meet URL from CONFIG   |
 
 ---
 
